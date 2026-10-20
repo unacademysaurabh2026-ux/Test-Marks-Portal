@@ -1,3 +1,4 @@
+
 // ====== 1. PASTE YOUR SUPABASE VALUES HERE (Project Settings > API) ======
 const SB_URL = 'https://sclulrpxjhiqgaddnipi.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNjbHVscnB4amhpcWdhZGRuaXBpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA4Mzg1NTYsImV4cCI6MjEwNjQxNDU1Nn0.ugfqvOUF3MX7tkkKzuhioUwiuEV8Yp-9uYmYy0DAVbM';
@@ -13,7 +14,7 @@ const downloadFormat = t => {
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Name of Student','Roll Number',...SUBJ[t]]]), 'Sheet1');
   XLSX.writeFile(wb, `${t}_format.csv`, {bookType:'csv'});
 };
-const TABS = {tests:'Tests',students:'Students',history:'Student history',dash:'Dashboard',admin:'Admin'};
+const TABS = {reports:'Reports',tests:'Tests & marks entry',students:'Students',dash:'Dashboard',admin:'Admin'};
 const $ = s => document.querySelector(s), view = $('#view');
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let me, batches = [], charts = [], T, rows = [];
@@ -42,7 +43,7 @@ function go(t){
   killCharts();
   $('#nav').innerHTML = Object.entries(TABS).filter(([k])=>k!=='admin'||can.del()).map(([k,v])=>`<button data-t="${k}" class="${k===t?'on':''}">${v}</button>`).join('');
   $('#nav').onclick = e => e.target.dataset.t && go(e.target.dataset.t);
-  ({tests:vTests,students:vStudents,history:vHistory,dash:vDash,admin:vAdmin})[t]();
+  ({reports:vReports,tests:vTests,students:vStudents,dash:vDash,admin:vAdmin})[t]();
 }
 
 // ---------- tests list + create ----------
@@ -217,7 +218,7 @@ function vStudents(){
 
 // ---------- student history ----------
 function vHistory(){
-  view.innerHTML = `<div class="bar"><input id="hq" placeholder="Roll number or name" size="28"><button class="p" id="hg">Show history</button></div><div id="hr"></div>`;
+  $('#rv').innerHTML = `<div class="bar"><input id="hq" placeholder="Roll number or name" size="28"><button class="p" id="hg">Show history</button></div><div id="hr"></div>`;
   const show = async roll => {
     const [{data,error},{data:mb}] = await Promise.all([sb.from('results_view').select('*').eq('roll_no',roll).order('test_date'),sb.from('student_batches').select('batches(name)').eq('roll_no',roll)]);
     if(fail(error,$('#hr'))) return;
@@ -246,6 +247,60 @@ function vHistory(){
     $('#hr').innerHTML = `<div class="card">${data.map(s=>`<div><a href="#" data-r="${esc(s.roll_no)}">${esc(s.name)} (${esc(s.roll_no)})</a></div>`).join('')}</div>`;
     $('#hr').onclick = e => { const a=e.target.closest('a[data-r]'); if(a){ e.preventDefault(); show(a.dataset.r); } };
   };
+}
+
+// ---------- reports ----------
+async function fetchAll(q){ let out=[], i=0; for(;;){ const {data,error}=await q().range(i,i+999); if(error) throw error; out=out.concat(data); if(data.length<1000) return out; i+=1000; } }
+const xl = (rows,name) => { const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),'Report'); XLSX.writeFile(wb,name); };
+const r1 = n => n==null||isNaN(n) ? '' : Math.round(n*10)/10;
+function vReports(){
+  view.innerHTML = `<div class="bar"><button data-r="student">Student report</button><button data-r="batch">Batch report</button><button data-r="subject">Subject report</button></div><div id="rv"></div>`;
+  const pick = r => { killCharts(); view.querySelectorAll('[data-r]').forEach(b=>b.classList.toggle('p',b.dataset.r===r)); ({student:vHistory,batch:vBatchRep,subject:vSubjectRep})[r](); };
+  view.firstElementChild.onclick = e => e.target.dataset.r && pick(e.target.dataset.r);
+  pick('student');
+}
+function vBatchRep(){
+  $('#rv').innerHTML = `<div class="bar"><select id="rb">${bopts()}</select><button class="p" id="rg">Show report</button><button id="rx">Export Excel</button><button id="rp">Print / PDF</button></div><div class="card tw" id="rt"><p class="mu">Choose a batch to see every student, every test and the average.</p></div>`;
+  let M; $('#rp').onclick = () => print();
+  $('#rg').onclick = async () => {
+    const bid=$('#rb').value; if(!bid) return;
+    let data; try{ data = await fetchAll(()=>sb.from('results_view').select('roll_no,student_name,test_id,test_name,test_date,test_type,total,max_total,percentage,rnk').eq('batch_id',bid).order('test_date')); }catch(e){ return fail(e,$('#rt')); }
+    if(!data.length){ $('#rt').innerHTML='<p class="mu">No results in this batch yet.</p>'; return; }
+    const tests=[]; data.forEach(r=>{ if(!tests.find(t=>t.id===r.test_id)) tests.push({id:r.test_id,name:r.test_name,date:r.test_date,max:r.max_total}); });
+    const st={}; data.forEach(r=>{ (st[r.roll_no]??={name:r.student_name,res:{}}).res[r.test_id]=r; });
+    const list = Object.entries(st).map(([roll,s])=>{ const p=Object.values(s.res).map(x=>+x.percentage||0); return {roll,name:s.name,res:s.res,n:p.length,avg:p.reduce((a,b)=>a+b,0)/p.length}; }).sort((a,b)=>b.avg-a.avg);
+    M = {tests,list};
+    $('#rt').innerHTML = `<table><tr><th class="n">#</th><th>Roll number</th><th>Name of student</th>${tests.map(t=>`<th class="n">${t.date}<br><span class="mu">${esc(t.name)} /${t.max}</span></th>`).join('')}<th class="n">Tests</th><th class="n">Average %</th></tr>
+      ${list.map((s,i)=>`<tr><td class="n">${i+1}</td><td>${esc(s.roll)}</td><td>${esc(s.name)}</td>${tests.map(t=>{ const x=s.res[t.id]; return `<td class="n">${x?`${x.total} <span class="mu">(#${x.rnk})</span>`:'-'}</td>`; }).join('')}<td class="n">${s.n}</td><td class="n">${r1(s.avg)}</td></tr>`).join('')}</table>
+      <p class="mu">Each cell shows total marks and the rank in that test. Students are ordered by average %.</p>`;
+  };
+  $('#rx').onclick = () => { if(!M) return; xl(M.list.map((s,i)=>({'Position':i+1,'Roll Number':s.roll,'Name of Student':s.name,...Object.fromEntries(M.tests.map(t=>[`${t.date} ${t.name}`,s.res[t.id]?.total??''])),'Tests Taken':s.n,'Average %':r1(s.avg)})),'batch_report.xlsx'); };
+}
+function vSubjectRep(){
+  $('#rv').innerHTML = `<div class="bar"><select id="rb">${bopts()}</select><select id="rs"><option value="">Choose subject</option></select><button class="p" id="rg">Show report</button><button id="rx">Export Excel</button><button id="rp">Print / PDF</button></div>
+    <div class="card" style="max-width:760px"><canvas id="rc" height="110"></canvas></div><div class="card tw" id="rt"><p class="mu">Choose a batch and a subject to see every student's marks test by test.</p></div>`;
+  let M; $('#rp').onclick = () => print();
+  const subs = async () => { const {data}=await sb.from('tests').select('subjects').eq('batch_id',$('#rb').value); $('#rs').innerHTML='<option value="">Choose subject</option>'+[...new Set((data||[]).flatMap(t=>t.subjects))].map(s=>`<option>${esc(s)}</option>`).join(''); };
+  $('#rb').onchange = subs; subs();
+  $('#rg').onclick = async () => {
+    const bid=$('#rb').value, sub=$('#rs').value; if(!bid||!sub) return alert('Choose a batch and a subject.');
+    let data; try{ data = await fetchAll(()=>sb.from('results_view').select('roll_no,student_name,test_id,test_name,test_date,marks,subject_max,subjects').eq('batch_id',bid).order('test_date')); }catch(e){ return fail(e,$('#rt')); }
+    data = data.filter(r=>r.subjects.includes(sub) && r.marks[sub]!=null);
+    if(!data.length){ $('#rt').innerHTML='<p class="mu">No marks for this subject in this batch.</p>'; return; }
+    const tests=[]; data.forEach(r=>{ if(!tests.find(t=>t.id===r.test_id)) tests.push({id:r.test_id,name:r.test_name,date:r.test_date,max:(r.subject_max||{})[sub]}); });
+    const st={}; data.forEach(r=>{ (st[r.roll_no]??={name:r.student_name,m:{}}).m[r.test_id]=+r.marks[sub]; });
+    const avg = a => a.length ? a.reduce((x,y)=>x+y,0)/a.length : null;
+    const list = Object.entries(st).map(([roll,s])=>({roll,name:s.name,m:s.m,avg:avg(Object.values(s.m))})).sort((a,b)=>b.avg-a.avg);
+    const col = t => list.map(s=>s.m[t.id]).filter(v=>v!=null);
+    M = {tests,list,sub};
+    killCharts();
+    $('#rt').innerHTML = `<table><tr><th class="n">#</th><th>Roll number</th><th>Name of student</th>${tests.map(t=>`<th class="n">${t.date}<br><span class="mu">${esc(t.name)}${t.max?' /'+t.max:''}</span></th>`).join('')}<th class="n">Average</th></tr>
+      ${list.map((s,i)=>`<tr><td class="n">${i+1}</td><td>${esc(s.roll)}</td><td>${esc(s.name)}</td>${tests.map(t=>`<td class="n">${s.m[t.id]??'-'}</td>`).join('')}<td class="n">${r1(s.avg)}</td></tr>`).join('')}
+      <tr><th colspan="3">Class average</th>${tests.map(t=>`<th class="n">${r1(avg(col(t)))}</th>`).join('')}<th></th></tr>
+      <tr><th colspan="3">Highest</th>${tests.map(t=>`<th class="n">${Math.max(...col(t))}</th>`).join('')}<th></th></tr></table>`;
+    chart('#rc','line',tests.map(t=>t.date),`${sub} class average`,tests.map(t=>r1(avg(col(t)))));
+  };
+  $('#rx').onclick = () => { if(!M) return; xl(M.list.map((s,i)=>({'Position':i+1,'Roll Number':s.roll,'Name of Student':s.name,...Object.fromEntries(M.tests.map(t=>[`${t.date} ${t.name}`,s.m[t.id]??''])),[`Average ${M.sub}`]:r1(s.avg)})),`${M.sub}_report.xlsx`); };
 }
 
 // ---------- dashboard ----------
