@@ -1,6 +1,6 @@
 // ====== 1. PASTE YOUR SUPABASE VALUES HERE (Project Settings > API) ======
-const SB_URL = 'YOUR_SUPABASE_URL';
-const SB_KEY = 'YOUR_SUPABASE_ANON_KEY';
+const SB_URL = 'https://wylnxkbnjhawppxxgovt.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind5bG54a2Juamhhd3BweHhnb3Z0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI0ODk4NDksImV4cCI6MjEwODA2NTg0OX0.Pygtulz9Vh6Lr6RNx8MzJe6YZMZueCJDZU3fj7jQnCA';
 // =========================================================================
 const sb = supabase.createClient(SB_URL, SB_KEY);
 const PRESETS = {
