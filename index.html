@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Result Manager</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+</head>
+<body>
+<div id="login" class="card" hidden>
+  <h2 style="margin-top:0">Result Manager</h2>
+  <input id="em" type="email" placeholder="Email" autocomplete="username">
+  <input id="pw" type="password" placeholder="Password" autocomplete="current-password">
+  <button class="p" id="go" style="width:100%">Sign in</button>
+  <p class="err" id="le"></p>
+</div>
+<div id="app" hidden>
+  <header><b>Result Manager</b><nav id="nav"></nav><span class="mu" id="who"></span><button id="out">Sign out</button></header>
+  <main id="view"></main>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
