@@ -29,3 +29,6 @@ tr.dirty td{background:var(--hl)}
 .err{color:var(--bad)}
 #login{max-width:340px;margin:12vh auto}#login input{width:100%;margin-bottom:10px}
 @media print{header,.bar,.noprint{display:none!important}body{background:#fff;color:#000}}
+.over{border-color:var(--bad)!important;color:var(--bad)}
+.chip{display:inline-block;background:var(--hl);color:var(--ac);border-radius:12px;padding:1px 9px;margin:0 4px 2px 0;font-size:12px}
+label{color:var(--mu);display:inline-flex;gap:6px;align-items:center}
